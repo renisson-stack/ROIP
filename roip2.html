@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>RoIP – Offline Unificado</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#f2f2f2;margin:0}
+#mainframe{width:1100px;margin:auto;background:#fff}
+
+.banner{background:#2f4f6f;color:#fff;padding:15px}
+.banner h2{margin:0}
+
+.content{padding:15px}
+
+.section-title{
+  background:#2f4f6f;
+  color:#fff;
+  padding:6px 10px;
+  font-weight:bold;
+  margin:15px 0 10px 0;
+}
+
+.edit{
+  padding:4px;
+  border:1px solid #000;
+  height:26px;
+  box-sizing:border-box;
+}
+
+.inline-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.columns{display:flex;gap:20px}
+.col{width:50%}
+
+/* BOTÕES */
+.btn-save{
+  background:#4da3ff;
+  color:#fff;
+  border:1px solid #000;
+  padding:5px 16px;
+  cursor:pointer;
+  height:26px;
+}
+.btn-save:hover{background:#2f80ed}
+
+.btn-file{
+  background:#3cb371;
+  color:#fff;
+  border:1px solid #000;
+  padding:5px 16px;
+  cursor:pointer;
+  height:26px;
+}
+.btn-file:hover{background:#2e8b57}
+
+#real_file_input{display:none}
+</style>
+
+<script>
+function parseDatFile(text){
+  const data={};
+  text.split(/\r?\n/).forEach(l=>{
+    l=l.trim(); if(!l) return;
+    const m=l.match(/^([^=]+)="?(.*?)"?$/);
+    if(m) data[m[1]]=m[2];
+  });
+  return data;
+}
+
+const datMap={
+  ETH0_IPADDR:'eth0_ip',
+  ETH0_NETMASK:'eth0_mask',
+  DEFAULT_ROUTE:'gateway',
+  DNS:'dns1',
+  DNS2:'dns2',
+  ROIP_WORK_MODE:'roip_work_mode_select',
+  SIP_CONTACT0_PROXY:'sip_proxy',
+  SIP_CONTACT0_LOGIN:'sip_user',
+  SIP_CONTACT0_PASSWD:'sip_pass',
+  SIP_LOCAL_PORT:'sip_port',
+  SIP_CONTACT0_DIAL_DIGITS:'sip_contact1_number',
+  CONTACT0_AD_NUM:'sip_contact2_register_expired'
+};
+
+function fillConfigForm(cfg){
+  Object.keys(datMap).forEach(k=>{
+    const el=document.getElementById(datMap[k]);
+    if(el && cfg[k]!==undefined) el.value=cfg[k];
+  });
+
+  // RTP PORT RANGE (somente via .dat)
+  document.getElementById('rtp_port_lower').value='';
+  document.getElementById('rtp_port_upper').value='';
+  if(cfg.RTP_PORT){
+    const p=cfg.RTP_PORT.split('-');
+    if(p[0]) document.getElementById('rtp_port_lower').value=p[0];
+    if(p[1]) document.getElementById('rtp_port_upper').value=p[1];
+  }
+}
+
+function restoreDat(file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    fillConfigForm(parseDatFile(e.target.result));
+    alert('Restore aplicado com sucesso');
+  };
+  r.readAsText(file);
+}
+
+function handleFileSelect(input){
+  const file=input.files[0];
+  if(!file) return;
+  document.getElementById('restore_filename').value=file.name;
+  restoreDat(file);
+}
+
+function backupConfig(){
+  let content='';
+  Object.keys(datMap).forEach(k=>{
+    const el=document.getElementById(datMap[k]);
+    if(el) content+=`${k}="${el.value}"\n`;
+  });
+
+  const low=document.getElementById('rtp_port_lower').value;
+  const up=document.getElementById('rtp_port_upper').value;
+  if(low || up){
+    content+=`RTP_PORT="${low}-${up}"\n`;
+  }
+
+  let filename=document.getElementById('backup_filename').value.trim();
+  if(!filename) filename='roip-config';
+  if(!filename.endsWith('.dat')) filename+='.dat';
+
+  const blob=new Blob([content],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  a.click();
+}
+</script>
+</head>
+
+<body>
+
+<div id="mainframe">
+  <div class="banner">
+    <h2>RoIP – Offline Unificado</h2>
+  </div>
+
+  <div class="content">
+    <div class="columns">
+
+      <!-- COLUNA ESQUERDA -->
+      <div class="col">
+        <div class="section-title">NETWORK</div>
+
+        IP:<br><input id="eth0_ip" class="edit" style="width:95%"><br><br>
+        Mask:<br><input id="eth0_mask" class="edit" style="width:95%"><br><br>
+        Gateway:<br><input id="gateway" class="edit" style="width:95%"><br><br>
+        DNS1:<br><input id="dns1" class="edit" style="width:95%"><br><br>
+        DNS2:<br><input id="dns2" class="edit" style="width:95%"><br><br>
+
+        <div class="section-title">TOOLS</div>
+
+        Nome do arquivo (.dat):
+        <div class="inline-row">
+          <input id="backup_filename" class="edit" style="width:83%">
+          <button class="btn-save" onclick="backupConfig()">Salvar</button>
+        </div>
+      </div>
+
+      <!-- COLUNA DIREITA -->
+      <div class="col">
+        <div class="section-title">SIP</div>
+
+        Proxy:<br><input id="sip_proxy" class="edit" style="width:95%"><br><br>
+        User:<br><input id="sip_user" class="edit" style="width:95%"><br><br>
+        Password:<br><input id="sip_pass" class="edit" style="width:95%"><br><br>
+        Port:<br><input id="sip_port" class="edit" style="width:95%"><br><br>
+
+        RoIP Registration Mode:<br>
+        <select id="roip_work_mode_select" class="edit" style="width:97%">
+          <option value="PROXY">Proxy</option>
+          <option value="DIRECT">Peer</option>
+        </select><br><br>
+
+        Group SIP Number:<br><input id="sip_contact1_number" class="edit" style="width:95%"><br><br>
+        Auto Dial Number:<br><input id="sip_contact2_register_expired" class="edit" style="width:95%">
+      </div>
+
+    </div>
+
+    <!-- LINHA ALINHADA: ESCOLHER ARQUIVO + RTP PORT -->
+    <div style="display:flex;gap:20px;margin-top:15px">
+
+      <!-- ESQUERDA -->
+      <div style="width:50%">
+        Escolher arquivo (.dat):
+        <div class="inline-row">
+          <input id="restore_filename" class="edit" style="width:83%" placeholder="nenhum arquivo escolhido" readonly>
+          <button class="btn-file"
+                  onclick="document.getElementById('real_file_input').click()">
+            Escolher
+          </button>
+        </div>
+        <input id="real_file_input" type="file" accept=".dat"
+               onchange="handleFileSelect(this)">
+      </div>
+
+      <!-- DIREITA -->
+      <div style="width:50%">
+        RTP Port Range:
+        <div class="inline-row">
+          <input id="rtp_port_lower" class="edit" style="width:45%">
+          <span>-</span>
+          <input id="rtp_port_upper" class="edit" style="width:45%">
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
